@@ -1,21 +1,11 @@
-#!/usr/bin/env python
-# encoding: utf-8
+from __future__ import print_function
 
 """ ////////////////////////////////////////////////////////////////////////////////
    ///                                                                          ///
-  ///       pacbio_cyp21a2.py                                                  ///
+  ///   PB-Motif: A method for detecting gene/pseudogene rearrangements        ///
+  ///             from PacBio long read data.                                 ///
  ///                                                                          ///
-///////     Structure detection for CYP21A2 / CYP21A1P rearrangements        //////                                                                 //////
-   ///      using PacBio long reads                                            ///
-  ///                                                                         ///
- ///        Written by:     Zach Stephens                                    ///
-///////     For:            Health Sciences Research, Mayo Clinic, MN       ///////
-   ///      Date:           July 26, 2018                                      ///
-  ///       Contact:        zstephe2@illinois.edu                             ///
- ///                                                                         ///
-/////////////////////////////////////////////////////////////////////////////// """
-
-from __future__ import print_function
+//////////////////////////////////////////////////////////////////////////////// """
 
 import os
 import re
@@ -32,10 +22,10 @@ import pickle
 SIM_PATH = '/'.join(os.path.realpath(__file__).split('/')[:-1])
 sys.path.append(SIM_PATH+'/py/')
 
-from pbcyp_graphFunc import exhaustive_DAG
-from pbcyp_misc      import exists_and_is_nonZero, makedir, getInputFileExtension, RC, read_fq_entry, read_fa_entry, print_nicely, l_2_cd, lcs
-from pbcyp_plotFunc  import plotting_object
-from pbcyp_vcf       import writeVCF
+from pbmotif_graphFunc import exhaustive_DAG
+from pbmotif_misc      import exists_and_is_nonZero, makedir, getInputFileExtension, RC, read_fq_entry, read_fa_entry, print_nicely, l_2_cd, lcs
+from pbmotif_plotFunc  import plotting_object
+from pbmotif_vcf       import writeVCF
 
 
 """//////////////////////////////////////////////////
@@ -46,12 +36,12 @@ from pbcyp_vcf       import writeVCF
 parser = argparse.ArgumentParser(description='pacbio_cyp21a2.py')
 parser.add_argument('-i',  type=str,   required=True,  metavar='<str>',                    help="* input.fq")
 parser.add_argument('-o',  type=str,   required=True,  metavar='<str>',                    help="* output_dir/")
-parser.add_argument('-m',  type=str,   required=False, metavar='<str>',     default='',    help="motifs.p")
+parser.add_argument('-m',  type=str,   required=True,  metavar='<str>',                    help="* motifs.p")
 parser.add_argument('-l',  type=int,   required=False, metavar='<int>',     default=500,   help="minimum read length")
 parser.add_argument('-p',  type=str,   required=False, metavar='<str>',     default='',    help="preprocessed_reads.p")
 # "nice motif pairs" parameters
-parser.add_argument('-ng', type=int,   required=False, metavar='<int>',     default=1,     help="(nice pairs) max contiguous motif gap")
-parser.add_argument('-nd', type=int,   required=False, metavar='<int>',     default=5,     help="(nice pairs) max distance for motif gaps")
+parser.add_argument('-ng', type=int,   required=False, metavar='<int>',     default=2,     help="(nice pairs) max contiguous motif gap")
+parser.add_argument('-nd', type=int,   required=False, metavar='<int>',     default=10,    help="(nice pairs) max distance for motif gaps")
 parser.add_argument('-np', type=float, required=False, metavar='<float>',   default=0.30,  help="(nice pairs) palindrome threshold")
 # quality score thresholds
 parser.add_argument('-qm', type=int,   required=False, metavar='<int>',     default=15,    help="minimum quality score for motif")
@@ -67,7 +57,7 @@ parser.add_argument('-cd', type=int,   required=False, metavar='<int>',     defa
 parser.add_argument('-cf', type=float, required=False, metavar='<float>',   default=0.50,  help="candidate structure must be close to at least this fraction of reads in an existing cluster to join it")
 # plotting parameters
 parser.add_argument('-pr', type=int,   required=False, metavar='<int>',     default=0,     help="plot this many raw read data (for debugging)")
-parser.add_argument('-pc', type=int,   required=False, metavar='<int>',     default=100,   help="plot clusters supported by at least this many reads")
+parser.add_argument('-pc', type=int,   required=False, metavar='<int>',     default=50,    help="plot clusters supported by at least this many reads")
 parser.add_argument('-pa', type=int,   required=False, metavar='<int>',     default=10,    help="max #motifs from edge to be considered anchored (high conf)")
 parser.add_argument('--extra-plots',   required=False, action='store_true', default=False, help='produce extra plots (histograms, weak clusters)')
 parser.add_argument('--skip-qs',       required=False, action='store_true', default=False, help='skip read quality score filter')
@@ -81,9 +71,6 @@ if OUT_DIR[-1] == '/':
 makedir(OUT_DIR)
 
 # read motif data
-if IN_MOTIFS == '':
-	print('using default motifs: cyp21a2-a1p-motifs.p')
-	IN_MOTIFS = SIM_PATH+'/cyp21a2-a1p-motifs.p'
 [MOTIFS, MOTIF_ALTS, N_PRIMER_MOTIFS, MOTIF_TRIM, PLOTTING_META] = pickle.load(open(IN_MOTIFS,"rb"))
 
 # "nice motif pairs" parameters
@@ -117,7 +104,7 @@ PARAMETERS = {'GAP_FLEX':GAP_FLEX,
               'QSCORE_MIN_ALL_MOTIF':QSCORE_MIN_ALL_MOTIF,
               'QSCORE_MIN_PRIO_POS':QSCORE_MIN_PRIO_POS}
 
-#
+# experimental
 FUZZY = 0
 if FUZZY:
 	import regex
@@ -219,7 +206,7 @@ elif isFASTQ or isFASTA:
 		rdat_it = [(my_read,my_qual), (RC(my_read),my_qual[::-1])]
 
 		nReads += 1
-		if nReads%10 == 0:
+		if nReads%100 == 0:
 			print(nReads,'/',nTOT,int(time.time()-tt),'(sec),', int((nTOT-nReads)/(nReads/(time.time()-tt))),'(remaining)')
 			#break
 
