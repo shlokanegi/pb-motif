@@ -179,7 +179,7 @@ elif isFASTQ or isFASTA:
 		nTOT      = int(int([n for n in out.decode('utf-8').split(' ') if len(n)][0])/lineDivisor)
 		f = open(INF,'r')
 	else:
-		ps   = subprocess.Popen(['gzcat',INF], stdout=subprocess.PIPE)
+		ps   = subprocess.Popen(['zcat',INF], stdout=subprocess.PIPE)
 		out  = subprocess.check_output(['wc','-l'], stdin=ps.stdout)
 		ps.wait()
 		nTOT = int(int([n for n in out.decode('utf-8').split(' ') if len(n)][0])/lineDivisor)
